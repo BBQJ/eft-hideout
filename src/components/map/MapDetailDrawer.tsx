@@ -1,21 +1,23 @@
+import { useMemo } from 'react'
 import { useI18n } from '../../i18n/useI18n'
 import { getItemName } from '../../lib/itemLabel'
 import {
   getPrerequisiteStationName,
   getUpgradeDescription,
-  getUpgradeStationName,
 } from '../../lib/upgradeLabel'
-import type { HideoutUpgrade, ItemMeta } from '../../types/domain'
+import type { HideoutStation, ItemMeta } from '../../types/domain'
 import type { HideoutNodeState } from './MapNode'
 
 interface MapDetailDrawerProps {
-  upgrade: HideoutUpgrade | null
-  nodeState: HideoutNodeState | null
+  station: HideoutStation | null
+  selectedUpgradeId: string | null
+  nodeStateByUpgradeId: Record<string, HideoutNodeState>
+  completedUpgradeIds: string[]
   itemsById: Record<string, ItemMeta>
   inventoryByItemId: Record<string, number>
-  isCompleted: boolean
-  onToggleCompleted: () => void
-  onDestroy?: () => void
+  onSelectUpgrade: (upgradeId: string) => void
+  onToggleCompleted: (upgradeId: string) => void
+  onDestroy: (upgradeId: string) => void
   onClose?: () => void
 }
 
@@ -26,18 +28,22 @@ function formatDuration(seconds: number): string {
 }
 
 export function MapDetailDrawer({
-  upgrade,
-  nodeState,
+  station,
+  selectedUpgradeId,
+  nodeStateByUpgradeId,
+  completedUpgradeIds,
   itemsById,
   inventoryByItemId,
-  isCompleted,
+  onSelectUpgrade,
   onToggleCompleted,
   onDestroy,
   onClose,
 }: MapDetailDrawerProps) {
   const { language, t } = useI18n()
 
-  if (!upgrade) {
+  const completedSet = useMemo(() => new Set(completedUpgradeIds), [completedUpgradeIds])
+
+  if (!station) {
     return (
       <aside className="map-drawer">
         <h2>{t('drawer.title')}</h2>
@@ -46,19 +52,33 @@ export function MapDetailDrawer({
     )
   }
 
-  const traderPrerequisites = upgrade.traderLevelRequirements
+  const orderedUpgrades = [...station.upgrades].sort((left, right) => left.level - right.level)
+  const highestCompletedUpgrade =
+    [...orderedUpgrades]
+      .filter((upgrade) => completedSet.has(upgrade.id))
+      .sort((left, right) => right.level - left.level)[0] ?? null
+  const expandedUpgradeId =
+    (selectedUpgradeId &&
+    orderedUpgrades.some((upgrade) => upgrade.id === selectedUpgradeId)
+      ? selectedUpgradeId
+      : null) ??
+    highestCompletedUpgrade?.id ??
+    orderedUpgrades[0]?.id ??
+    null
+
+  const stationLabel = language === 'ko' ? (station.koName ?? station.name) : station.name
 
   return (
     <aside className="map-drawer">
       <header className="map-drawer-head">
-        <h2>
-          {getUpgradeStationName(upgrade, language)} {t('common.level')}
-          {upgrade.level}
-        </h2>
+        <div>
+          <h2>{stationLabel}</h2>
+          <p className="meta-text">
+            {t('common.level')}
+            {highestCompletedUpgrade?.level ?? 0}
+          </p>
+        </div>
         <div className="map-drawer-head-actions">
-          <span className={`state-pill is-${nodeState ?? 'locked'}`}>
-            {t(`state.${nodeState ?? 'locked'}`)}
-          </span>
           {onClose ? (
             <button
               className="icon-button"
@@ -73,110 +93,163 @@ export function MapDetailDrawer({
         </div>
       </header>
 
-      <p className="meta-text">
-        {t('drawer.buildTime', { time: formatDuration(upgrade.constructionTimeSeconds) })}
-      </p>
-      <p>{getUpgradeDescription(upgrade, language)}</p>
+      <div className="drawer-level-list">
+        {orderedUpgrades.map((upgrade) => {
+          const isExpanded = upgrade.id === expandedUpgradeId
+          const isCompleted = completedSet.has(upgrade.id)
+          const nodeState = nodeStateByUpgradeId[upgrade.id] ?? 'locked'
+          const traderPrerequisites = upgrade.traderLevelRequirements
 
-      <div className="detail-actions">
-        <button className="action-button" type="button" onClick={onToggleCompleted}>
-          {isCompleted ? t('drawer.markIncomplete') : t('drawer.markCompleted')}
-        </button>
-        <button
-          className="action-button danger-button"
-          type="button"
-          onClick={onDestroy}
-          disabled={!onDestroy}
-        >
-          {t('drawer.destroy')}
-        </button>
-      </div>
-
-      <section>
-        <h3>{t('drawer.requirements')}</h3>
-        {upgrade.itemRequirements.length === 0 ? (
-          <p className="meta-text">{t('drawer.noItemsRequired')}</p>
-        ) : (
-          <ul className="simple-list">
-            {upgrade.itemRequirements.map((requirement) => {
-              const item = itemsById[requirement.itemId]
-              const owned = inventoryByItemId[requirement.itemId] ?? 0
-              const missing = Math.max(requirement.count - owned, 0)
-
-              return (
-                <li key={requirement.itemId}>
-                  <span className="item-cell">
-                    <span className="item-thumb-wrap">
-                      {item?.iconLink ? (
-                        <img className="item-thumb" src={item.iconLink} alt="" loading="lazy" />
-                      ) : (
-                        <span className="item-thumb is-empty" aria-hidden="true" />
-                      )}
-                      {requirement.foundInRaidRequired ? (
-                        <span
-                          className="item-thumb-badge"
-                          title={t('common.foundInRaid')}
-                          aria-label={t('common.foundInRaid')}
-                        >
-                          ✓
-                        </span>
-                      ) : null}
-                    </span>
-                    <span className="item-label">
-                      {item ? getItemName(item, language) : requirement.itemId} x
-                      {requirement.count}
-                    </span>
-                  </span>
+          return (
+            <section
+              key={upgrade.id}
+              className={`drawer-level-card ${isExpanded ? 'is-expanded' : ''}`}
+            >
+              <button
+                type="button"
+                className="drawer-level-summary"
+                onClick={() => onSelectUpgrade(upgrade.id)}
+              >
+                <span className="drawer-level-summary-left">
                   <strong>
-                    {missing > 0 ? t('drawer.missing', { count: missing }) : t('drawer.ready')}
+                    {t('common.level')}
+                    {upgrade.level}
                   </strong>
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </section>
+                  <span className="meta-text">
+                    {t('drawer.buildTime', {
+                      time: formatDuration(upgrade.constructionTimeSeconds),
+                    })}
+                  </span>
+                </span>
+                <span className={`state-pill is-${nodeState}`}>{t(`state.${nodeState}`)}</span>
+              </button>
 
-      <section>
-        <h3>{t('drawer.prerequisites')}</h3>
-        {upgrade.stationLevelRequirements.length === 0 && traderPrerequisites.length === 0 ? (
-          <p className="meta-text">{t('drawer.noStationPrerequisites')}</p>
-        ) : (
-          <>
-            {upgrade.stationLevelRequirements.length > 0 ? (
-              <ul className="simple-list">
-                {upgrade.stationLevelRequirements.map((prerequisite) => (
-                  <li key={prerequisite.upgradeId}>
-                    <span>
-                      {getPrerequisiteStationName(prerequisite, language)} {t('common.level')}
-                      {prerequisite.level}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
+              {isExpanded ? (
+                <div className="drawer-level-body">
+                  <p>{getUpgradeDescription(upgrade, language)}</p>
 
-            {traderPrerequisites.length > 0 ? (
-              <>
-                <h4 className="mini-section-title">{t('drawer.traderPrerequisites')}</h4>
-                <ul className="simple-list">
-                  {traderPrerequisites.map((requirement) => (
-                    <li key={`${requirement.traderId}:${requirement.level}`}>
-                      <span>
-                        {language === 'ko'
-                          ? (requirement.koTraderName ?? requirement.traderName)
-                          : requirement.traderName}{' '}
-                        {t('common.level')}
-                        {requirement.level}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            ) : null}
-          </>
-        )}
-      </section>
+                  <div className="detail-actions">
+                    <button
+                      className="action-button"
+                      type="button"
+                      onClick={() => onToggleCompleted(upgrade.id)}
+                    >
+                      {isCompleted
+                        ? t('drawer.markIncomplete')
+                        : t('drawer.markCompleted')}
+                    </button>
+                    <button
+                      className="action-button danger-button"
+                      type="button"
+                      onClick={() => onDestroy(upgrade.id)}
+                      disabled={upgrade.level <= 1}
+                    >
+                      {t('drawer.destroy')}
+                    </button>
+                  </div>
+
+                  <section>
+                    <h3>{t('drawer.requirements')}</h3>
+                    {upgrade.itemRequirements.length === 0 ? (
+                      <p className="meta-text">{t('drawer.noItemsRequired')}</p>
+                    ) : (
+                      <ul className="simple-list">
+                        {upgrade.itemRequirements.map((requirement) => {
+                          const item = itemsById[requirement.itemId]
+                          const owned = inventoryByItemId[requirement.itemId] ?? 0
+                          const missing = Math.max(requirement.count - owned, 0)
+
+                          return (
+                            <li key={requirement.itemId}>
+                              <span className="item-cell">
+                                <span className="item-thumb-wrap">
+                                  {item?.iconLink ? (
+                                    <img
+                                      className="item-thumb"
+                                      src={item.iconLink}
+                                      alt=""
+                                      loading="lazy"
+                                    />
+                                  ) : (
+                                    <span className="item-thumb is-empty" aria-hidden="true" />
+                                  )}
+                                  {requirement.foundInRaidRequired ? (
+                                    <span
+                                      className="item-thumb-badge"
+                                      title={t('common.foundInRaid')}
+                                      aria-label={t('common.foundInRaid')}
+                                    >
+                                      ??
+                                    </span>
+                                  ) : null}
+                                </span>
+                                <span className="item-label">
+                                  {item ? getItemName(item, language) : requirement.itemId} x
+                                  {requirement.count}
+                                </span>
+                              </span>
+                              <strong>
+                                {missing > 0
+                                  ? t('drawer.missing', { count: missing })
+                                  : t('drawer.ready')}
+                              </strong>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                  </section>
+
+                  <section>
+                    <h3>{t('drawer.prerequisites')}</h3>
+                    {upgrade.stationLevelRequirements.length === 0 &&
+                    traderPrerequisites.length === 0 ? (
+                      <p className="meta-text">{t('drawer.noStationPrerequisites')}</p>
+                    ) : (
+                      <>
+                        {upgrade.stationLevelRequirements.length > 0 ? (
+                          <ul className="simple-list">
+                            {upgrade.stationLevelRequirements.map((prerequisite) => (
+                              <li key={prerequisite.upgradeId}>
+                                <span>
+                                  {getPrerequisiteStationName(prerequisite, language)}{' '}
+                                  {t('common.level')}
+                                  {prerequisite.level}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
+
+                        {traderPrerequisites.length > 0 ? (
+                          <>
+                            <h4 className="mini-section-title">
+                              {t('drawer.traderPrerequisites')}
+                            </h4>
+                            <ul className="simple-list">
+                              {traderPrerequisites.map((requirement) => (
+                                <li key={`${requirement.traderId}:${requirement.level}`}>
+                                  <span>
+                                    {language === 'ko'
+                                      ? (requirement.koTraderName ?? requirement.traderName)
+                                      : requirement.traderName}{' '}
+                                    {t('common.level')}
+                                    {requirement.level}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </>
+                        ) : null}
+                      </>
+                    )}
+                  </section>
+                </div>
+              ) : null}
+            </section>
+          )
+        })}
+      </div>
     </aside>
   )
 }

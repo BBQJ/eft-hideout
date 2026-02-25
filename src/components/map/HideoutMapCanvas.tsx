@@ -90,15 +90,12 @@ function buildMapLayout(stations: HideoutStation[]): HideoutMapLayout {
   }
 }
 
-function pickVisibleUpgradeForStation(
+function pickDisplayedUpgradeForStation(
   upgrades: HideoutUpgrade[],
-  visibleUpgradeIds: Set<string>,
   nodeStateByUpgradeId: Record<string, HideoutNodeState>,
   selectedUpgradeId: string | null,
 ): HideoutUpgrade | null {
-  const visible = upgrades
-    .filter((upgrade) => visibleUpgradeIds.has(upgrade.id))
-    .sort((left, right) => left.level - right.level)
+  const visible = [...upgrades].sort((left, right) => left.level - right.level)
 
   if (visible.length === 0) {
     return null
@@ -316,9 +313,8 @@ export function HideoutMapCanvas({
   const displayedUpgradeByStationId = useMemo(
     () =>
       stations.reduce<Record<string, HideoutUpgrade>>((map, station) => {
-        const picked = pickVisibleUpgradeForStation(
+        const picked = pickDisplayedUpgradeForStation(
           station.upgrades,
-          visibleUpgradeIds,
           nodeStateByUpgradeId,
           selectedUpgradeId,
         )
@@ -327,7 +323,7 @@ export function HideoutMapCanvas({
         }
         return map
       }, {}),
-    [nodeStateByUpgradeId, selectedUpgradeId, stations, visibleUpgradeIds],
+    [nodeStateByUpgradeId, selectedUpgradeId, stations],
   )
 
   const edges = useMemo(() => {
@@ -374,6 +370,15 @@ export function HideoutMapCanvas({
     prereqGraph,
     stationIdByUpgradeId,
   ])
+
+  const stationHasVisibleUpgrade = useMemo(
+    () =>
+      stations.reduce<Record<string, boolean>>((map, station) => {
+        map[station.id] = station.upgrades.some((upgrade) => visibleUpgradeIds.has(upgrade.id))
+        return map
+      }, {}),
+    [stations, visibleUpgradeIds],
+  )
 
   const handleWheel = (event: WheelEvent<HTMLDivElement>) => {
     if (isViewPinned) {
@@ -521,6 +526,9 @@ export function HideoutMapCanvas({
 
               const displayedUpgrade = displayedUpgradeByStationId[station.id]
               if (!displayedUpgrade) {
+                return null
+              }
+              if (!stationHasVisibleUpgrade[station.id]) {
                 return null
               }
 

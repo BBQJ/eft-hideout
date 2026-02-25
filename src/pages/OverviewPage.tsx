@@ -27,7 +27,6 @@ export function OverviewPage() {
   const replaceFromSnapshot = useUserStore((state) => state.replaceFromSnapshot)
 
   const [searchTerm, setSearchTerm] = useState('')
-  const [showOnlyTargeted, setShowOnlyTargeted] = useState(false)
   const [showOnlyAvailable, setShowOnlyAvailable] = useState(false)
   const [selectedUpgradeId, setSelectedUpgradeId] = useState<string | null>(null)
   const [isPopupOpen, setIsPopupOpen] = useState(false)
@@ -82,13 +81,8 @@ export function OverviewPage() {
     }
 
     return allUpgrades.reduce<Set<string>>((visible, upgrade) => {
-      const isTargeted = targetedSet.has(upgrade.id)
       const isAvailable =
         prereqSatisfiedSet.has(upgrade.id) && !completedSet.has(upgrade.id)
-
-      if (showOnlyTargeted && !isTargeted) {
-        return visible
-      }
 
       if (showOnlyAvailable && !isAvailable) {
         return visible
@@ -121,8 +115,6 @@ export function OverviewPage() {
     language,
     searchNeedle,
     showOnlyAvailable,
-    showOnlyTargeted,
-    targetedSet,
     prereqSatisfiedSet,
   ])
   const visibleStationCount = useMemo(() => {
@@ -138,15 +130,11 @@ export function OverviewPage() {
     if (!data) {
       return null
     }
-    if (
-      selectedUpgradeId &&
-      data.upgradesById[selectedUpgradeId] &&
-      visibleUpgradeIds.has(selectedUpgradeId)
-    ) {
+    if (selectedUpgradeId && data.upgradesById[selectedUpgradeId]) {
       return selectedUpgradeId
     }
     return null
-  }, [data, selectedUpgradeId, visibleUpgradeIds])
+  }, [data, selectedUpgradeId])
 
   const selectedUpgrade = useMemo(() => {
     if (!data || !derivedSelectedUpgradeId) {
@@ -155,14 +143,12 @@ export function OverviewPage() {
     return data.upgradesById[derivedSelectedUpgradeId] ?? null
   }, [data, derivedSelectedUpgradeId])
 
-  const isSelectedComplete = useMemo(
-    () => selectedUpgrade !== null && completedUpgradeIds.includes(selectedUpgrade.id),
-    [completedUpgradeIds, selectedUpgrade],
-  )
-  const selectedState = useMemo(
-    () => (selectedUpgrade ? nodeStateByUpgradeId[selectedUpgrade.id] ?? 'locked' : null),
-    [nodeStateByUpgradeId, selectedUpgrade],
-  )
+  const selectedStation = useMemo(() => {
+    if (!data || !selectedUpgrade) {
+      return null
+    }
+    return data.stations.find((station) => station.id === selectedUpgrade.stationId) ?? null
+  }, [data, selectedUpgrade])
 
   const desiredAutoTargetIds = useMemo(
     () =>
@@ -185,7 +171,7 @@ export function OverviewPage() {
   }, [desiredAutoTargetIds, syncTargets, targetUpgradeIds])
 
   useEffect(() => {
-    if (!selectedUpgrade || !isPopupOpen) {
+    if (!selectedStation || !isPopupOpen) {
       return
     }
 
@@ -213,7 +199,7 @@ export function OverviewPage() {
       document.removeEventListener('pointerdown', handlePointerDown)
       document.removeEventListener('keydown', handleEscape)
     }
-  }, [isPopupOpen, selectedUpgrade])
+  }, [isPopupOpen, selectedStation])
 
   const targetUpgrades = useMemo(
     () => {
@@ -372,14 +358,6 @@ export function OverviewPage() {
         <label className="toggle-chip">
           <input
             type="checkbox"
-            checked={showOnlyTargeted}
-            onChange={(event) => setShowOnlyTargeted(event.target.checked)}
-          />
-          {t('overview.onlyTargeted')}
-        </label>
-        <label className="toggle-chip">
-          <input
-            type="checkbox"
             checked={showOnlyAvailable}
             onChange={(event) => setShowOnlyAvailable(event.target.checked)}
           />
@@ -423,87 +401,109 @@ export function OverviewPage() {
                 setIsPopupOpen(true)
               }}
             />
-            {selectedUpgrade && isPopupOpen ? (
+            {selectedStation && isPopupOpen ? (
               <div className="map-popup" ref={popupRef}>
                 <MapDetailDrawer
-                  upgrade={selectedUpgrade}
-                  nodeState={selectedState}
+                  station={selectedStation}
+                  selectedUpgradeId={derivedSelectedUpgradeId}
+                  nodeStateByUpgradeId={nodeStateByUpgradeId}
+                  completedUpgradeIds={completedUpgradeIds}
                   itemsById={data.itemsById}
                   inventoryByItemId={inventoryByItemId}
-                  isCompleted={isSelectedComplete}
                   onClose={() => setIsPopupOpen(false)}
-                  onToggleCompleted={() => {
-                    if (selectedUpgrade) {
-                      const nextCompleted = !isSelectedComplete
-                      setCompleted(selectedUpgrade.id, nextCompleted)
+                  onSelectUpgrade={(upgradeId) => {
+                    setSelectedUpgradeId(upgradeId)
+                    setIsPopupOpen(true)
+                  }}
+                  onToggleCompleted={(upgradeId) => {
+                    const upgrade = data.upgradesById[upgradeId]
+                    if (!upgrade) {
+                      return
+                    }
 
-                      if (nextCompleted) {
-                        const station = data.stations.find(
-                          (entry) => entry.id === selectedUpgrade.stationId,
-                        )
-                        const nextUpgrade = station?.upgrades.find(
-                          (entry) => entry.level > selectedUpgrade.level,
-                        )
-                        if (nextUpgrade) {
-                          setSelectedUpgradeId(nextUpgrade.id)
-                          setIsPopupOpen(true)
-                        }
+                    const currentlyCompleted = completedUpgradeIds.includes(upgradeId)
+                    const nextCompleted = !currentlyCompleted
+                    setCompleted(upgradeId, nextCompleted)
+
+                    const station = data.stations.find((entry) => entry.id === upgrade.stationId)
+                    if (!station) {
+                      return
+                    }
+
+                    if (nextCompleted) {
+                      const nextUpgrade = [...station.upgrades]
+                        .sort((left, right) => left.level - right.level)
+                        .find((entry) => entry.level > upgrade.level)
+                      if (nextUpgrade) {
+                        setSelectedUpgradeId(nextUpgrade.id)
+                        setIsPopupOpen(true)
+                        return
                       }
                     }
+
+                    if (!nextCompleted && upgrade.level > 1) {
+                      const previousUpgrade =
+                        [...station.upgrades]
+                          .filter((entry) => entry.level < upgrade.level)
+                          .sort((left, right) => right.level - left.level)[0] ?? null
+                      if (previousUpgrade) {
+                        setSelectedUpgradeId(previousUpgrade.id)
+                        setIsPopupOpen(true)
+                        return
+                      }
+                    }
+
+                    setSelectedUpgradeId(upgrade.id)
+                    setIsPopupOpen(true)
                   }}
-                  onDestroy={
-                    selectedUpgrade.level > 1
-                      ? () => {
-                          const station = data.stations.find(
-                            (entry) => entry.id === selectedUpgrade.stationId,
-                          )
-                          if (!station) {
-                            return
-                          }
+                  onDestroy={(upgradeId) => {
+                    const upgrade = data.upgradesById[upgradeId]
+                    if (!upgrade || upgrade.level <= 1) {
+                      return
+                    }
 
-                          const nextCompletedUpgradeIds = completedUpgradeIds.filter((id) => {
-                            const upgrade = data.upgradesById[id]
-                            if (!upgrade) {
-                              return false
-                            }
-                            if (upgrade.stationId !== selectedUpgrade.stationId) {
-                              return true
-                            }
-                            return upgrade.level < selectedUpgrade.level
-                          })
+                    const station = data.stations.find((entry) => entry.id === upgrade.stationId)
+                    if (!station) {
+                      return
+                    }
 
-                          const nextTargetUpgradeIds = targetUpgradeIds.filter((id) => {
-                            const upgrade = data.upgradesById[id]
-                            if (!upgrade) {
-                              return false
-                            }
-                            if (upgrade.stationId !== selectedUpgrade.stationId) {
-                              return true
-                            }
-                            return upgrade.level < selectedUpgrade.level
-                          })
+                    const nextCompletedUpgradeIds = completedUpgradeIds.filter((id) => {
+                      const candidate = data.upgradesById[id]
+                      if (!candidate) {
+                        return false
+                      }
+                      if (candidate.stationId !== upgrade.stationId) {
+                        return true
+                      }
+                      return candidate.level < upgrade.level
+                    })
 
-                          replaceFromSnapshot({
-                            completedUpgradeIds: nextCompletedUpgradeIds,
-                            targetUpgradeIds: nextTargetUpgradeIds,
-                            inventoryByItemId,
-                            traderLevelsByTraderId,
-                          })
+                    const nextTargetUpgradeIds = targetUpgradeIds.filter((id) => {
+                      const candidate = data.upgradesById[id]
+                      if (!candidate) {
+                        return false
+                      }
+                      if (candidate.stationId !== upgrade.stationId) {
+                        return true
+                      }
+                      return candidate.level < upgrade.level
+                    })
 
-                          const previousUpgrade =
-                            [...station.upgrades]
-                              .filter((upgrade) => upgrade.level < selectedUpgrade.level)
-                              .sort((left, right) => right.level - left.level)[0] ?? null
+                    replaceFromSnapshot({
+                      completedUpgradeIds: nextCompletedUpgradeIds,
+                      targetUpgradeIds: nextTargetUpgradeIds,
+                      inventoryByItemId,
+                      traderLevelsByTraderId,
+                    })
 
-                          if (previousUpgrade) {
-                            setSelectedUpgradeId(previousUpgrade.id)
-                            setIsPopupOpen(true)
-                          } else {
-                            setIsPopupOpen(false)
-                          }
-                        }
-                      : undefined
-                  }
+                    const previousUpgrade =
+                      [...station.upgrades]
+                        .filter((entry) => entry.level < upgrade.level)
+                        .sort((left, right) => right.level - left.level)[0] ?? null
+
+                    setSelectedUpgradeId(previousUpgrade?.id ?? station.upgrades[0]?.id ?? null)
+                    setIsPopupOpen(true)
+                  }}
                 />
               </div>
             ) : null}

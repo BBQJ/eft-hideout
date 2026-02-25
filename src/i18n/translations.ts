@@ -149,7 +149,7 @@ const ko: Record<TranslationKey, string> = {
 
   'overview.searchLabel': '모듈/아이템 검색:',
   'overview.searchPlaceholder': 'Workbench, hose, bulb...',
-  'overview.onlyTargeted': '타겟만 보기',
+  'overview.onlyTargeted': '목표만 보기',
   'overview.onlyAvailable': '가능 상태만 보기',
   'overview.pinCanvas': '캔버스 고정',
   'overview.unpinCanvas': '캔버스 잠금 해제',
@@ -166,14 +166,14 @@ const ko: Record<TranslationKey, string> = {
 
   'dashboard.title': '대시보드',
   'dashboard.desc':
-    '현재 타겟 기준 총 필요 재료에서 보유분을 뺀 부족 수량입니다.',
-  'dashboard.targets': '타겟 ({count})',
-  'dashboard.noTargets': '선택된 타겟이 없습니다.',
-  'dashboard.addTargetHint': '개요 페이지에서 타겟 업그레이드를 추가하세요.',
+    '현재 목표 기준 총 필요 재료에서 보유분을 뺀 부족 수량입니다.',
+  'dashboard.targets': '목표 ({count})',
+  'dashboard.noTargets': '선택된 목표가 없습니다.',
+  'dashboard.addTargetHint': '개요 페이지에서 목표 업그레이드를 추가하세요.',
 
   'backup.title': '백업',
   'backup.desc':
-    '내보내기/가져오기는 로컬 사용자 상태만 포함합니다. 완료 업그레이드, 타겟, 인벤토리. 스키마 버전: {version}.',
+    '내보내기/가져오기는 로컬 사용자 상태만 포함합니다. 완료 업그레이드, 목표, 인벤토리. 스키마 버전: {version}.',
   'backup.export': 'JSON 내보내기',
   'backup.import': 'JSON 가져오기',
   'backup.exported': '백업을 내보냈습니다.',
@@ -187,8 +187,8 @@ const ko: Record<TranslationKey, string> = {
   'drawer.markIncomplete': '완료 해제',
   'drawer.markCompleted': '완료 처리',
   'drawer.destroy': '철거 (이전 단계)',
-  'drawer.removeTarget': '타겟 해제',
-  'drawer.addTarget': '타겟 추가',
+  'drawer.removeTarget': '목표 해제',
+  'drawer.addTarget': '목표 추가',
   'drawer.requirements': '요구 아이템',
   'drawer.noItemsRequired': '필요한 아이템이 없습니다.',
   'drawer.ready': '충족',
@@ -197,13 +197,13 @@ const ko: Record<TranslationKey, string> = {
   'drawer.traderPrerequisites': '트레이더 우호도',
   'drawer.noStationPrerequisites': '모듈 선행조건이 없습니다.',
 
-  'targetPanel.title': '타겟 아이템 목록 ({count})',
-  'targetPanel.desc': '현재 타겟 모듈들의 통합 요구 재료입니다.',
+  'targetPanel.title': '목표 아이템 목록 ({count})',
+  'targetPanel.desc': '현재 목표 모듈들의 통합 요구 재료입니다.',
   'targetPanel.req': '요구',
   'targetPanel.own': '보유',
   'targetPanel.miss': '부족',
   'targetPanel.onlyFoundInRaid': '인레이드 아이템만 보기',
-  'targetPanel.noTargets': '선택된 타겟 모듈이 없습니다.',
+  'targetPanel.noTargets': '선택된 목표 모듈이 없습니다.',
 
   'traderPanel.title': '트레이더 레벨',
   'traderPanel.desc': '은신처 선행조건에 필요한 트레이더 우호도 레벨을 기록합니다.',
@@ -219,7 +219,7 @@ const ko: Record<TranslationKey, string> = {
   'state.locked': '잠김',
   'state.available': '가능',
   'state.completed': '완료',
-  'state.targeted': '타겟',
+  'state.targeted': '목표',
 }
 
 export const MESSAGES: Record<Language, Record<TranslationKey, string>> = {

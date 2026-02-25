@@ -400,6 +400,60 @@ p {
   overflow: auto;
 }
 
+.drawer-level-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.drawer-level-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #0f1520;
+  overflow: hidden;
+}
+
+.drawer-level-card.is-expanded {
+  border-color: #32445d;
+}
+
+.drawer-level-summary {
+  width: 100%;
+  border: none;
+  background: #131b28;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.drawer-level-summary:hover {
+  background: #172131;
+}
+
+.drawer-level-summary-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.drawer-level-summary-left .meta-text {
+  font-size: 0.8rem;
+}
+
+.drawer-level-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 10px;
+  border-top: 1px solid var(--border);
+}
+
 .map-side-column {
   display: flex;
   flex-direction: column;
